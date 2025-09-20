@@ -1,472 +1,139 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Jharkhand Eco-Tourist Guide — Interactive Map & GPS</title>
-
-<!-- Internal CSS (so it's a single file) -->
-<style>
-  :root{
-    --accent:#0b8457;
-    --muted:#6b7280;
-    --bg:#f7faf9;
-    --card:#ffffff;
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  }
-  html,body{height:100%;margin:0;background:var(--bg);color:#0f172a}
-  .app{
-    display:grid;
-    grid-template-columns:360px 1fr;
-    gap:18px;
-    height:100vh;
-    padding:16px;
-    box-sizing:border-box;
-  }
-
-  /* Sidebar */
-  .sidebar{
-    background:var(--card);
-    border-radius:12px;
-    padding:16px;
-    box-shadow:0 6px 18px rgba(12,13,14,0.06);
-    overflow:auto;
-  }
-  h1{font-size:20px;margin:0 0 8px 0}
-  .muted{color:var(--muted);font-size:13px;margin-bottom:12px}
-  .districts{
-    display:grid;
-    grid-template-columns:1fr;
-    gap:6px;
-    max-height:44vh;
-    overflow:auto;
-    padding-right:6px;
-  }
-  .district{
-    padding:8px 10px;border-radius:8px;border:1px solid #eef2f7;cursor:pointer;
-  }
-  .district:hover{background:#f1fff6;border-color:#d6f5e3}
-  .district.active{background:linear-gradient(90deg,var(--accent),#17a47d);color:white;border:none;box-shadow:0 6px 24px rgba(11,132,87,0.12)}
-
-  /* District details */
-  .details{margin-top:12px;padding:10px;border-radius:8px;background:#fbfffb;border:1px solid #e6f6ee}
-  .controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  button{background:var(--accent);color:white;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600}
-  button.ghost{background:#eef2f7;color:var(--accent)}
-  .small{padding:6px 8px;font-size:13px}
-
-  /* Map area */
-  .map-wrap{display:flex;flex-direction:column;gap:12px;height:100%}
-  #map{height:66vh;border-radius:12px;border:1px solid #e6edf0}
-  .map-footer{
-    display:flex;justify-content:space-between;align-items:center;
-    background:var(--card);padding:10px;border-radius:10px;border:1px solid #eef2f7;box-shadow:0 6px 18px rgba(12,13,14,0.04)
-  }
-  .status{font-size:14px;color:var(--muted)}
-  .nearby-results{max-height:180px;overflow:auto;padding:8px;border-radius:8px;border:1px dashed #eef2f7;background:#ffffff}
-  .poi{padding:6px;border-bottom:1px solid #f3f6f8}
-  .poi:last-child{border-bottom:none}
-  code{background:#f3f4f6;padding:2px 6px;border-radius:6px;font-size:13px}
-  .note{font-size:13px;color:var(--muted);margin-top:8px}
-  @media (max-width:980px){
-    .app{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:12px}
-    #map{height:54vh}
-  }
-</style>
-
-<!-- Leaflet CSS from CDN (safe to include) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
- integrity="sha256-sA+e2Hq6w0g2nKk4qjH6P6Gv6Gq2t4lGQ5Y5g5w5r9M=" crossorigin=""/>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eco Tourism Guide - Jharkhand</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+    }
+    #sidebar {
+      width: 300px;
+      background: #f8f9f9;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    #map {
+      flex: 1;
+    }
+    h2 {
+      text-align: center;
+      color: #2c662d;
+    }
+    .district {
+      margin: 10px 0;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .district button {
+      margin: 4px 0;
+      width: 100%;
+      padding: 6px;
+      background: #2c662d;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .district button:hover {
+      background: #3d8b40;
+    }
+  </style>
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar">
-    <h1>Jharkhand Eco-Guide</h1>
-    <div class="muted">Interactive tourist guide — districts, nearby hotels/restaurants, and GPS-based location finder.</div>
+  <div id="sidebar">
+    <h2>Jharkhand Eco-Tourism</h2>
 
-    <strong>Districts (24)</strong>
-    <div class="districts" id="districtList"></div>
-
-    <div class="details" id="districtDetails">
-      <strong id="dName">Select a district</strong>
-      <p id="dDesc" class="muted">Choose any district on the left to see summary, attractions, and quick actions.</p>
-
-      <div class="controls">
-        <button id="centerBtn" class="small ghost">Center map on district</button>
-        <button id="nearbyHotelsBtn" class="small">Find hotels nearby</button>
-        <button id="nearbyRestaurantsBtn" class="small">Find restaurants nearby</button>
-        <button id="openGpsBtn" class="small">Open GPS tracker</button>
-      </div>
-
-      <div style="margin-top:8px;">
-        <label style="font-size:13px">Edit district summary (save locally)</label>
-        <textarea id="descEditor" placeholder="Paste or write a short summary (2-3 lines ideal)" style="width:100%;height:70px;margin-top:6px;border-radius:8px;border:1px solid #eef2f7;padding:8px"></textarea>
-        <div style="display:flex;gap:8px;margin-top:6px">
-          <button id="saveDesc" class="small">Save summary</button>
-          <button id="resetDesc" class="small ghost">Reset</button>
-        </div>
-      </div>
+    <!-- District Example -->
+    <div class="district">
+      <h3>Bokaro</h3>
+      <button onclick="centerDistrict(23.6693, 86.1511)">Center map on district</button>
+      <button onclick="findNearby('hotel', 23.6693, 86.1511)">Find hotels nearby</button>
+      <button onclick="findNearby('restaurant', 23.6693, 86.1511)">Find restaurants nearby</button>
     </div>
 
-    <div style="margin-top:12px">
-      <strong>Quick tips</strong>
-      <ul style="padding-left:18px;color:var(--muted);font-size:13px">
-        <li>Allow the browser to use your location for GPS tracking.</li>
-        <li>Use "Find hotels/restaurants" after selecting a district — results use OpenStreetMap data.</li>
-        <li>All edits are saved to your browser (localStorage) so you can edit content offline.</li>
-      </ul>
+    <div class="district">
+      <h3>Ranchi</h3>
+      <button onclick="centerDistrict(23.3441, 85.3096)">Center map on district</button>
+      <button onclick="findNearby('hotel', 23.3441, 85.3096)">Find hotels nearby</button>
+      <button onclick="findNearby('restaurant', 23.3441, 85.3096)">Find restaurants nearby</button>
     </div>
 
-    <div class="note">Data & map tiles: OpenStreetMap (no API key). Nearby searches use the public Overpass API.</div>
-    <div style="margin-top:8px;font-size:12px;color:var(--muted)">Sources: Official Jharkhand district list (24 districts). :contentReference[oaicite:2]{index=2}</div>
-  </aside>
-
-  <main class="map-wrap">
-    <div id="map"></div>
-
-    <div class="map-footer">
-      <div>
-        <div class="status" id="status">Map loaded. Select a district or use GPS.</div>
-        <div style="margin-top:6px;font-size:13px;color:var(--muted)">Click a POI marker for details. Use the GPS button to show your live position.</div>
-      </div>
-
-      <div style="width:360px">
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <input id="radiusInput" type="number" placeholder="radius (meters)" value="2000" style="flex:1;padding:8px;border-radius:8px;border:1px solid #eef2f7" />
-          <select id="poiSelect" style="padding:8px;border-radius:8px;border:1px solid #eef2f7">
-            <option value="hotel">Hotels</option>
-            <option value="restaurant">Restaurants</option>
-            <option value="tourism">Tourist spots</option>
-          </select>
-        </div>
-
-        <div class="nearby-results" id="nearbyList">
-          <div class="muted">Nearby results will appear here when you search.</div>
-        </div>
-      </div>
+    <div class="district">
+      <h3>Dhanbad</h3>
+      <button onclick="centerDistrict(23.7957, 86.4304)">Center map on district</button>
+      <button onclick="findNearby('hotel', 23.7957, 86.4304)">Find hotels nearby</button>
+      <button onclick="findNearby('restaurant', 23.7957, 86.4304)">Find restaurants nearby</button>
     </div>
-  </main>
-</div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
- integrity="sha256-sA+e2Hq6w0g2nKk4qjH6P6Gv6Gq2t4lGQ5Y5g5w5r9M=" crossorigin=""></script>
+    <hr>
+    <button onclick="openGPSTracker()">📍 Open GPS tracker</button>
+  </div>
 
-<script>
-/*
-  Jharkhand Eco-Guide (single-file)
-  - Districts array below contains names + coordinates (center approximations).
-  - Uses OpenStreetMap tiles + Overpass API for nearby POI searches.
-  - GPS uses navigator.geolocation.watchPosition to update a moving marker.
-*/
+  <div id="map"></div>
 
-/* ====== CONFIG: districts list (24) with approximate center coords ======
-   Source: aggregated from public maps (adjust any coords you prefer).
-   You can paste richer descriptions later in the UI.
-*/
-const districts = [
-  { id:'bokaro', name:'Bokaro', lat:23.6693, lon:86.1511 },
-  { id:'chatra', name:'Chatra', lat:24.2030, lon:84.8018 },
-  { id:'deoghar', name:'Deoghar', lat:24.4867, lon:86.6946 },
-  { id:'dhanbad', name:'Dhanbad', lat:23.7957, lon:86.4304 },
-  { id:'dumka', name:'Dumka', lat:24.2539, lon:87.2836 },
-  { id:'east-singhbhum', name:'East Singhbhum (Jamshedpur)', lat:22.8046, lon:86.2029 },
-  { id:'garhwa', name:'Garhwa', lat:24.1700, lon:83.0876 },
-  { id:'giridih', name:'Giridih', lat:24.2000, lon:86.3000 },
-  { id:'godda', name:'Godda', lat:24.8399, lon:87.2258 },
-  { id:'gumla', name:'Gumla', lat:23.0410, lon:84.5335 },
-  { id:'hazaribagh', name:'Hazaribagh', lat:23.9920, lon:85.3610 },
-  { id:'jamtara', name:'Jamtara', lat:23.9526, lon:86.8000 },
-  { id:'khunti', name:'Khunti', lat:23.1460, lon:85.3260 },
-  { id:'koderma', name:'Koderma', lat:24.4590, lon:85.5864 },
-  { id:'latehar', name:'Latehar', lat:23.7417, lon:84.6016 },
-  { id:'lohardaga', name:'Lohardaga', lat:23.4384, lon:84.6727 },
-  { id:'pakur', name:'Pakur', lat:24.6422, lon:87.8248 },
-  { id:'palamu', name:'Palamu (Medininagar)', lat:24.0432, lon:84.0243 },
-  { id:'ramgarh', name:'Ramgarh', lat:23.6390, lon:85.5120 },
-  { id:'ranchi', name:'Ranchi', lat:23.3441, lon:85.3096 },
-  { id:'sahebganj', name:'Sahebganj', lat:24.2333, lon:87.6333 },
-  { id:'saraikela', name:'Saraikela-Kharsawan', lat:22.6856, lon:85.9210 },
-  { id:'simdega', name:'Simdega', lat:22.6167, lon:84.5333 },
-  { id:'west-singhbhum', name:'West Singhbhum (Chaibasa)', lat:22.8066, lon:85.5336 }
-];
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Initialize the map
+    const map = L.map('map').setView([23.6, 85.3], 7);
 
-/*===== Helpers for localStorage saved summaries =====*/
-function loadSummary(id){
-  return localStorage.getItem('jh_summary_' + id) || '';
-}
-function saveSummary(id, text){
-  localStorage.setItem('jh_summary_' + id, text);
-}
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
 
-/* ====== Build district list UI ====== */
-const listEl = document.getElementById('districtList');
-const detailsName = document.getElementById('dName');
-const detailsDesc = document.getElementById('dDesc');
-const descEditor = document.getElementById('descEditor');
-const saveDescBtn = document.getElementById('saveDesc');
-const resetDescBtn = document.getElementById('resetDesc');
-let activeDistrict = null;
+    // Center on district
+    function centerDistrict(lat, lng) {
+      map.setView([lat, lng], 10);
+      L.marker([lat, lng]).addTo(map).bindPopup("District Center").openPopup();
+    }
 
-districts.forEach(d => {
-  const el = document.createElement('div');
-  el.className = 'district';
-  el.id = 'd-' + d.id;
-  el.innerHTML = `<strong style="font-size:14px">${d.name}</strong><div style="font-size:13px;color:var(--muted)">${d.lat.toFixed(3)}, ${d.lon.toFixed(3)}</div>`;
-  el.onclick = () => selectDistrict(d.id);
-  listEl.appendChild(el);
-});
+    // Nearby places using OpenStreetMap Nominatim
+    async function findNearby(type, lat, lng) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${type}&limit=5&viewbox=${lng-0.1},${lat+0.1},${lng+0.1},${lat-0.1}`;
+      const response = await fetch(url);
+      const data = await response.json();
 
-/* ====== Map setup (Leaflet) ====== */
-const map = L.map('map', { zoomControl:true }).setView([23.8,85.3], 7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+      data.forEach(place => {
+        L.marker([place.lat, place.lon])
+          .addTo(map)
+          .bindPopup(`${place.display_name}`);
+      });
 
-const districtMarkers = {};
-districts.forEach(d => {
-  const marker = L.circleMarker([d.lat,d.lon], {radius:6, color:'#0b8457', fillColor:'#0b8457', fillOpacity:0.9})
-    .addTo(map)
-    .bindTooltip(d.name)
-    .on('click', ()=> selectDistrict(d.id));
-  districtMarkers[d.id] = marker;
-});
-
-/* POI layer group */
-const poiGroup = L.layerGroup().addTo(map);
-
-/* GPS marker and watcher ID */
-let gpsMarker = null;
-let gpsWatchId = null;
-
-/* UI elements */
-const centerBtn = document.getElementById('centerBtn');
-const nearbyHotelsBtn = document.getElementById('nearbyHotelsBtn');
-const nearbyRestaurantsBtn = document.getElementById('nearbyRestaurantsBtn');
-const openGpsBtn = document.getElementById('openGpsBtn');
-const statusEl = document.getElementById('status');
-const nearbyList = document.getElementById('nearbyList');
-const radiusInput = document.getElementById('radiusInput');
-const poiSelect = document.getElementById('poiSelect');
-
-centerBtn.addEventListener('click', () => {
-  if(!activeDistrict){ alert('Pick a district first.'); return; }
-  const d = districts.find(x=>x.id===activeDistrict);
-  map.setView([d.lat,d.lon], 12, {animate:true});
-});
-
-nearbyHotelsBtn.addEventListener('click', ()=> {
-  if(!activeDistrict){ alert('Pick a district first.'); return; }
-  const d = districts.find(x=>x.id===activeDistrict);
-  searchNearby(d.lat,d.lon, parseInt(radiusInput.value||2000), 'hotel');
-});
-nearbyRestaurantsBtn.addEventListener('click', ()=> {
-  if(!activeDistrict){ alert('Pick a district first.'); return; }
-  const d = districts.find(x=>x.id===activeDistrict);
-  searchNearby(d.lat,d.lon, parseInt(radiusInput.value||2000), 'restaurant');
-});
-openGpsBtn.addEventListener('click', ()=> {
-  startGPS();
-});
-
-/* Save / edit summary */
-saveDescBtn.addEventListener('click', ()=> {
-  if(!activeDistrict){ alert('Pick a district first.'); return; }
-  saveSummary(activeDistrict, descEditor.value.trim());
-  loadDistrictSummaryUI(activeDistrict);
-  alert('Saved locally in your browser.');
-});
-resetDescBtn.addEventListener('click', ()=> {
-  if(!activeDistrict){ alert('Pick a district first.'); return; }
-  descEditor.value = '';
-  saveSummary(activeDistrict, '');
-  loadDistrictSummaryUI(activeDistrict);
-});
-
-
-/* Select district: highlight and populate details */
-function selectDistrict(id){
-  if(activeDistrict){
-    document.getElementById('d-' + activeDistrict).classList.remove('active');
-  }
-  activeDistrict = id;
-  document.getElementById('d-' + id).classList.add('active');
-
-  const d = districts.find(x=>x.id===id);
-  detailsName.textContent = d.name;
-  loadDistrictSummaryUI(id);
-
-  // center map a little
-  map.setView([d.lat,d.lon], 11, {animate:true});
-
-  statusEl.textContent = `Selected ${d.name} (${d.lat.toFixed(3)}, ${d.lon.toFixed(3)}) — choose an action.`;
-}
-
-/* Load saved summary or default text */
-function loadDistrictSummaryUI(id){
-  const d = districts.find(x=>x.id===id);
-  const saved = loadSummary(id);
-  if(saved && saved.trim().length>0){
-    detailsDesc.textContent = saved;
-    descEditor.value = saved;
-  } else {
-    // default small placeholder text
-    detailsDesc.textContent = `Short summary placeholder for ${d.name}. Add a 2–3 line eco-tourism friendly description, attractions, and travel tips using the editor below.`;
-    descEditor.value = '';
-  }
-}
-
-/* ====== Overpass query to find amenities around a point ======
-   We will query for: amenity=restaurant / hotel OR tourism=attraction depending on type.
-   Overpass API URL used: https://overpass-api.de/api/interpreter
-*/
-async function searchNearby(lat, lon, radius=2000, type='hotel'){
-  // clear old POIs
-  poiGroup.clearLayers();
-  nearbyList.innerHTML = '<div class="muted">Searching nearby... please wait (Overpass API)</div>';
-  statusEl.textContent = `Searching ${type} within ${radius}m...`;
-
-  // choose Overpass condition
-  let condition = '';
-  if(type === 'hotel'){
-    // hotels can be tagged as tourism=hotel OR amenity=hotel OR tourism=lodging
-    condition = `(node["tourism"="hotel"](around:${radius},${lat},${lon});node["amenity"="hotel"](around:${radius},${lat},${lon});node["tourism"="lodging"](around:${radius},${lat},${lon});way["tourism"="hotel"](around:${radius},${lat},${lon});relation["tourism"="hotel"](around:${radius},${lat},${lon});)`;
-  } else if(type === 'restaurant'){
-    condition = `(node["amenity"="restaurant"](around:${radius},${lat},${lon});way["amenity"="restaurant"](around:${radius},${lat},${lon});relation["amenity"="restaurant"](around:${radius},${lat},${lon});)`;
-  } else if(type === 'tourism'){
-    condition = `(node["tourism"](around:${radius},${lat},${lon});way["tourism"](around:${radius},${lat},${lon});relation["tourism"](around:${radius},${lat},${lon});)`;
-  } else {
-    condition = `(node(around:${radius},${lat},${lon});)`;
-  }
-
-  // Overpass QL query
-  const query = `[out:json][timeout:25];
-    ${condition}
-    out center 50;`;
-
-  try {
-    const url = 'https://overpass-api.de/api/interpreter';
-    const response = await fetch(url, {
-      method: 'POST',
-      body: query,
-      headers: { 'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }
-    });
-    if(!response.ok) throw new Error('Overpass API error: ' + response.status);
-
-    const data = await response.json();
-    displayPOIs(data.elements, lat, lon);
-  } catch (err){
-    console.error(err);
-    nearbyList.innerHTML = `<div style="color:red">Search failed: ${err.message}. Try again later.</div>`;
-    statusEl.textContent = 'Search error — see console.';
-  }
-}
-
-/* Display POIs returned by Overpass */
-function displayPOIs(elements, centerLat, centerLon){
-  poiGroup.clearLayers();
-  if(!elements || elements.length === 0){
-    nearbyList.innerHTML = '<div class="muted">No places found within that radius.</div>';
-    statusEl.textContent = 'No results.';
-    return;
-  }
-
-  // sort by distance
-  const withDistance = elements.map(el => {
-    // nodes have lat/lon; ways have center or lat/lon
-    const lat = el.lat || (el.center && el.center.lat);
-    const lon = el.lon || (el.center && el.center.lon);
-    const dist = getDistance(centerLat, centerLon, lat, lon);
-    return {...el, lat, lon, dist};
-  }).filter(e=>e.lat && e.lon)
-    .sort((a,b)=>a.dist - b.dist);
-
-  nearbyList.innerHTML = '';
-  withDistance.slice(0,40).forEach(el => {
-    const nm = el.tags && (el.tags.name || el.tags['alt_name']) || (el.tags && el.tags.amenity) || 'Unnamed';
-    const desc = el.tags && el.tags.description ? el.tags.description : '';
-    const addrParts = [el.tags && el.tags['addr:street'], el.tags && el.tags['addr:city']].filter(Boolean).join(', ')
-    const item = document.createElement('div');
-    item.className = 'poi';
-    item.innerHTML = `<strong>${nm}</strong> <div style="font-size:13px;color:var(--muted)">${addrParts || ''}</div><div style="font-size:13px;color:var(--muted)">${(el.dist||0).toFixed(0)} m away</div>`;
-    item.onclick = ()=> map.setView([el.lat,el.lon], 16, {animate:true});
-    nearbyList.appendChild(item);
-
-    // add marker
-    const m = L.marker([el.lat, el.lon]).addTo(poiGroup);
-    let popupHtml = `<strong>${nm}</strong><br/>${desc ? desc + '<br/>' : ''}${addrParts ? addrParts + '<br/>' : ''}Distance: ${(el.dist||0).toFixed(0)} m`;
-    if(el.tags && el.tags.website) popupHtml += `<br/><a href="${el.tags.website}" target="_blank">Website</a>`;
-    m.bindPopup(popupHtml);
-  });
-
-  statusEl.textContent = `Found ${withDistance.length} results (showing top ${Math.min(40, withDistance.length)}).`;
-}
-
-/* Simple haversine distance (meters) */
-function getDistance(lat1,lon1,lat2,lon2){
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI/180;
-  const φ2 = lat2 * Math.PI/180;
-  const Δφ = (lat2-lat1) * Math.PI/180;
-  const Δλ = (lon2-lon1) * Math.PI/180;
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-          Math.cos(φ1) * Math.cos(φ2) *
-          Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
-/* ===== GPS tracking ===== */
-function startGPS(){
-  if(!('geolocation' in navigator)){ alert('Geolocation not supported by this browser.'); return; }
-  if(gpsWatchId !== null){
-    // already watching — stop
-    navigator.geolocation.clearWatch(gpsWatchId);
-    gpsWatchId = null;
-    if(gpsMarker){ map.removeLayer(gpsMarker); gpsMarker = null; }
-    openGpsBtn.textContent = 'Open GPS tracker';
-    statusEl.textContent = 'GPS stopped.';
-    return;
-  }
-
-  // Start watching
-  gpsWatchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const acc = pos.coords.accuracy;
-
-      if(!gpsMarker){
-        gpsMarker = L.circle([lat,lon], {radius:Math.max(acc,10), color:'#1e90ff', fillColor:'#1e90ff', fillOpacity:0.2}).addTo(map);
-        L.marker([lat,lon]).addTo(map).bindPopup('Your position');
-      } else {
-        gpsMarker.setLatLng([lat,lon]);
-        gpsMarker.setRadius(Math.max(acc,10));
+      if (data.length === 0) {
+        alert(`No ${type}s found nearby.`);
       }
+    }
 
-      map.setView([lat,lon], 15, {animate:true});
-      statusEl.textContent = `GPS active — ${lat.toFixed(6)}, ${lon.toFixed(6)} (accuracy ${Math.round(acc)} m)`;
-      openGpsBtn.textContent = 'Stop GPS';
-    },
-    (err) => {
-      console.error(err);
-      alert('GPS error: ' + err.message + '. Make sure location is enabled and you gave permission.');
-      statusEl.textContent = 'GPS error: ' + err.message;
-    },
-    { enableHighAccuracy:true, maximumAge:30000, timeout:20000 }
-  );
-}
+    // GPS Tracker
+    function openGPSTracker() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
 
-/* ===== On load: select a default district (Ranchi) and restore any saved summaries ===== */
-(function init(){
-  // activate Ranchi by default
-  selectDistrict('ranchi');
-
-  // preload any saved summaries into UI when selected
-  // if user previously saved, loadDistrictSummaryUI will pick it up on selection
-})();
-</script>
+            map.setView([lat, lng], 13);
+            L.marker([lat, lng])
+              .addTo(map)
+              .bindPopup("📍 You are here!")
+              .openPopup();
+          },
+          (error) => {
+            alert("Error getting location: " + error.message);
+          }
+        );
+      } else {
+        alert("Geolocation not supported by this browser.");
+      }
+    }
+  </script>
 </body>
 </html>
